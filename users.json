@@ -1,8 +1,5 @@
 {
     "Allen": {
-        "password": "Admin@1234"
-    },
-    "Junior": {
-        "password": "Admin@1234"
+        "password": "$2b$12$vXOyb16d/GNF/Nf5tVySxOCckPV8Es3iG3yUblQcfpppBumIEA8mO"
     }
 }

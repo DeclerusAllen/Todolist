@@ -1,4 +1,5 @@
 import json
+import bcrypt
 import typer
 import getpass
 from pathlib import Path
@@ -232,6 +233,16 @@ def search_tasks_interactive(for_modify_delete=False):
 #      AUTHENTIFICATION
 # ==========================
 
+def hash_password(password: str) -> str:
+    """Hache un mot de passe avec bcrypt"""
+    salt = bcrypt.gensalt()
+    return bcrypt.hashpw(password.encode("utf-8"), salt).decode("utf-8")
+
+def verify_password(password: str, hashed: str) -> bool:
+    """Vérifie qu’un mot de passe correspond à son hash"""
+    return bcrypt.checkpw(password.encode("utf-8"), hashed.encode("utf-8"))
+
+
 @auth_app.command("register")
 def register():
     users = load_json(USERS_FILE, {})
@@ -243,7 +254,8 @@ def register():
     if not password:
         console.print("[red]❌ Le mot de passe ne peut pas être vide ![/red]")
         raise typer.Exit()
-    users[username] = {"password": password}
+    hashed_password = hash_password(password)   # ✅ on hache le mot de passe
+    users[username] = {"password": hashed_password}
     save_json(USERS_FILE, users)
     console.print(f"[green]✅ Compte créé pour {username} ![/green]")
     console.print("Connectez-vous avec : python todo.py auth login")
@@ -255,13 +267,14 @@ def login():
     users = load_json(USERS_FILE, {})
     username = ask_non_empty("Nom d'utilisateur")
     password = getpass.getpass("Mot de passe: ").strip()
-    if username not in users or users[username]["password"] != password:
+
+    if username not in users or not verify_password(password, users[username]["password"]):
         console.print("[red]❌ Nom d'utilisateur ou mot de passe incorrect ![/red]")
         raise typer.Exit()
+
     current_user["username"] = username
     save_session(username)
     console.print(f"[green]🔓 Connecté en tant que {username}[/green]")
-
 
 @auth_app.command("logout")
 def logout():
