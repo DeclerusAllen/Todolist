@@ -66,48 +66,48 @@ pip install typer rich
 ### 🔐 Authentification
 Créer un compte :  
 ```bash
-python todo.py auth register
+python main.py auth register
 ```
 
 Se connecter :  
 ```bash
-python todo.py auth login
+python main.py auth login
 ```
 
 Se déconnecter :  
 ```bash
-python todo.py auth logout
+python main.py auth logout
 ```
 
 ### ✅ Gestion des tâches (après connexion)
 Ajouter une tâche :  
 ```bash
-python todo.py tasks add
+python main.py tasks add
 ```
 
 Lister toutes les tâches :  
 ```bash
-python todo.py tasks list
+python main.py tasks list
 ```
 
 Modifier une tâche :  
 ```bash
-python todo.py tasks edit
+python main.py tasks edit
 ```
 
 Supprimer une tâche :  
 ```bash
-python todo.py tasks delete
+python main.py tasks delete
 ```
 
 Marquer une tâche comme terminée :  
 ```bash
-python todo.py tasks done
+python main.py tasks done
 ```
 
 Rechercher une tâche :  
 ```bash
-python todo.py tasks search
+python main.py tasks search
 ```
 
 ---
@@ -116,28 +116,28 @@ python todo.py tasks search
 
 ```bash
 # Créer un compte
-python todo.py auth register
+python main.py auth register
 
 # Connexion
-python todo.py auth login
+python main.py auth login
 
 # Ajouter une tâche
-python todo.py tasks add
+python main.py tasks add
 
 # Lister les tâches
-python todo.py tasks list
+python main.py tasks list
 
 # Modifier une tâche
-python todo.py tasks edit
+python main.py tasks edit
 
 # Supprimer une tâche
-python todo.py tasks delete
+python main.py tasks delete
 
 # Marquer comme faite
-python todo.py tasks done
+python main.py tasks done
 
 # Rechercher une tâche
-python todo.py tasks search
+python main.py tasks search
 ```
 
 ---
@@ -147,11 +147,15 @@ python todo.py tasks search
 ```
 Todolist/
 │
-├─ todo.py        # Fichier principal avec toutes les commandes
-├─ users.json     # Stockage des utilisateurs
-├─ tasks.json     # Stockage des tâches par utilisateur
-├─ session.json   # Session pour maintenir la connexion
-└─ README.md      # Documentation du projet
+├─ main.py # Point d'entrée du CLI
+├─ config.py # Configuration globale (console, fichiers JSON, current_user)
+├─ utils.py # Fonctions utilitaires (JSON, session, bcrypt, input utilisateur)
+├─ auth.py # Commandes liées à l'authentification (register/login/logout)
+├─ tasks.py # Commandes liées aux tâches (add/list/edit/delete/done/search)
+├─ users.json # Stockage des utilisateurs avec mots de passe hachés
+├─ tasks.json # Stockage des tâches par utilisateur
+├─ session.json # Gestion de la session pour maintenir la connexion
+└─ README.md # Documentation du projet
 ```
 
 ---
