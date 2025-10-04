@@ -1,140 +1,23 @@
-import json
-import bcrypt
 import typer
-import getpass
-from pathlib import Path
-from rich.console import Console
 from rich.table import Table
 from datetime import datetime
+from getpass import getpass
+from config import console, TASKS_FILE, current_user
+from utils import load_json, save_json, require_login, ask_non_empty, ask_date, ask_multiline, confirm_action
 
-console = Console()
-
-# --- Fichiers JSON ---
-USERS_FILE = Path("users.json")
-TASKS_FILE = Path("tasks.json")
-SESSION_FILE = Path("session.json")
-
-current_user = {"username": None}
-
-app = typer.Typer(help="📝 Gestion de tâches avec authentification")
-auth_app = typer.Typer(help="Gestion de l'authentification (register/login/logout)")
 tasks_app = typer.Typer(help="Gestion des tâches (après connexion)")
 
-app.add_typer(auth_app, name="auth")
-app.add_typer(tasks_app, name="tasks")
-
 # ==========================
-#       FONCTIONS UTILES
+#  Fonctions pour les tâches
 # ==========================
-
-def load_json(file_path: Path, default_data):
-    if not file_path.exists():
-        file_path.write_text(json.dumps(default_data))
-        return default_data
-    try:
-        content = file_path.read_text().strip()
-        return json.loads(content) if content else default_data
-    except json.JSONDecodeError:
-        console.print(f"[yellow]⚠ Fichier {file_path} corrompu. Réinitialisation...[/yellow]")
-        file_path.write_text(json.dumps(default_data))
-        return default_data
-
-
-def save_json(file_path: Path, data):
-    try:
-        file_path.write_text(json.dumps(data, indent=4))
-    except Exception as e:
-        console.print(f"[red]Erreur sauvegarde {file_path}: {e}[/red]")
-
-
-def save_session(username: str):
-    try:
-        SESSION_FILE.write_text(json.dumps({"username": username}))
-    except Exception as e:
-        console.print(f"[red]Impossible de sauvegarder la session: {e}[/red]")
-
-
-def clear_session():
-    try:
-        if SESSION_FILE.exists():
-            SESSION_FILE.unlink()
-    except Exception as e:
-        console.print(f"[red]Impossible de supprimer la session: {e}[/red]")
-
-
-def load_session():
-    if not SESSION_FILE.exists():
-        return None
-    try:
-        data = json.loads(SESSION_FILE.read_text())
-        return data.get("username")
-    except Exception:
-        return None
-
-
-def require_login():
-    if current_user["username"]:
-        return
-    username = load_session()
-    if username:
-        users = load_json(USERS_FILE, {})
-        if username in users:
-            current_user["username"] = username
-            return
-    console.print("[red]❌ Vous devez être connecté ![/red]")
-    console.print("[yellow]Utilisez : python todo.py auth login[/yellow]")
-    raise typer.Exit()
-
-
 def get_user_tasks():
     tasks = load_json(TASKS_FILE, {})
     return tasks.get(current_user["username"], [])
-
 
 def save_user_tasks(user_tasks):
     tasks = load_json(TASKS_FILE, {})
     tasks[current_user["username"]] = user_tasks
     save_json(TASKS_FILE, tasks)
-
-
-def ask_non_empty(prompt_text):
-    while True:
-        value = typer.prompt(prompt_text).strip()
-        if value:
-            return value
-        console.print("[red]❌ Cette valeur ne peut pas être vide.[/red]")
-
-
-def ask_date(prompt_text):
-    while True:
-        date_input = typer.prompt(prompt_text).strip()
-        if date_input == "":
-            return datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-        try:
-            dt = datetime.strptime(date_input, "%Y-%m-%d %H:%M")
-            return dt.strftime("%Y-%m-%d %H:%M:%S")
-        except ValueError:
-            console.print("[red]❌ Format invalide. Utilisez YYYY-MM-DD HH:MM[/red]")
-
-
-def ask_multiline(prompt_text):
-    console.print(f"{prompt_text} (Terminer avec une ligne vide)")
-    lines = []
-    while True:
-        line = typer.prompt("").rstrip()
-        if line == "":
-            break
-        lines.append(line)
-    return "\n".join(lines) if lines else "[Aucune description]"
-
-
-def confirm_action(message):
-    while True:
-        choice = typer.prompt(f"{message} [Y/N]").strip().lower()
-        if choice in ["y", "n"]:
-            return choice == "y"
-        console.print("[red]❌ Veuillez répondre par Y ou N[/red]")
-
 
 def search_tasks_interactive(for_modify_delete=False):
     """
@@ -209,7 +92,6 @@ def search_tasks_interactive(for_modify_delete=False):
         table.add_row(str(i+1), t["title"], t["description"], t["created_at"], status)
     console.print(table)
 
-
     if for_modify_delete and criteria in ["2", "3"]:
         while True:
             id_choice = typer.prompt("Entrez l'ID pour confirmer la ligne (Enter pour annuler)").strip()
@@ -219,7 +101,6 @@ def search_tasks_interactive(for_modify_delete=False):
             try:
                 id_choice = int(id_choice) - 1
                 if 0 <= id_choice < len(results):
-                    # Retourner seulement la tâche choisie
                     return [results[id_choice]], [indices[id_choice]]
                 else:
                     console.print("[red]❌ ID invalide[/red]")
@@ -228,68 +109,8 @@ def search_tasks_interactive(for_modify_delete=False):
 
     return results, indices
 
-
 # ==========================
-#      AUTHENTIFICATION
-# ==========================
-
-def hash_password(password: str) -> str:
-    """Hache un mot de passe avec bcrypt"""
-    salt = bcrypt.gensalt()
-    return bcrypt.hashpw(password.encode("utf-8"), salt).decode("utf-8")
-
-def verify_password(password: str, hashed: str) -> bool:
-    """Vérifie qu’un mot de passe correspond à son hash"""
-    return bcrypt.checkpw(password.encode("utf-8"), hashed.encode("utf-8"))
-
-
-@auth_app.command("register")
-def register():
-    users = load_json(USERS_FILE, {})
-    username = ask_non_empty("Nom d'utilisateur")
-    if username in users:
-        console.print("[red]❌ Ce nom d'utilisateur existe déjà ![/red]")
-        raise typer.Exit()
-    password = getpass.getpass("Mot de passe: ").strip()
-    if not password:
-        console.print("[red]❌ Le mot de passe ne peut pas être vide ![/red]")
-        raise typer.Exit()
-    hashed_password = hash_password(password)   # ✅ on hache le mot de passe
-    users[username] = {"password": hashed_password}
-    save_json(USERS_FILE, users)
-    console.print(f"[green]✅ Compte créé pour {username} ![/green]")
-    console.print("Connectez-vous avec : python todo.py auth login")
-
-
-@auth_app.command("login")
-def login():
-    global current_user
-    users = load_json(USERS_FILE, {})
-    username = ask_non_empty("Nom d'utilisateur")
-    password = getpass.getpass("Mot de passe: ").strip()
-
-    if username not in users or not verify_password(password, users[username]["password"]):
-        console.print("[red]❌ Nom d'utilisateur ou mot de passe incorrect ![/red]")
-        raise typer.Exit()
-
-    current_user["username"] = username
-    save_session(username)
-    console.print(f"[green]🔓 Connecté en tant que {username}[/green]")
-
-@auth_app.command("logout")
-def logout():
-    global current_user
-    username = current_user["username"] or load_session()
-    if username:
-        clear_session()
-        current_user["username"] = None
-        console.print(f"[green]🔒 Déconnecté : {username}[/green]")
-    else:
-        console.print("[yellow]Vous n'étiez pas connecté.[/yellow]")
-
-
-# ==========================
-#          TÂCHES
+#  Commandes Typer
 # ==========================
 
 @tasks_app.command("add")
@@ -303,7 +124,6 @@ def add():
     tasks.append(task)
     save_user_tasks(tasks)
     console.print(f"[green]✅ Tâche '{title}' ajoutée ![/green]")
-
 
 @tasks_app.command("list")
 def list_tasks():
@@ -322,7 +142,6 @@ def list_tasks():
         status = "✅ Fait" if t["done"] else "❌ En attente"
         table.add_row(str(i+1), t["title"], t["description"], t["created_at"], status)
     console.print(table)
-
 
 @tasks_app.command("edit")
 def edit():
@@ -358,7 +177,6 @@ def edit():
     else:
         console.print("[yellow]Modification annulée.[/yellow]")
 
-
 @tasks_app.command("delete")
 def delete():
     require_login()
@@ -377,7 +195,6 @@ def delete():
     else:
         console.print("[yellow]Suppression annulée.[/yellow]")
 
-
 @tasks_app.command("done")
 def done():
     require_login()
@@ -390,17 +207,7 @@ def done():
     save_user_tasks(tasks)
     console.print(f"[green]✅ Tâche '{tasks[task_idx]['title']}' complétée ![/green]")
 
-
 @tasks_app.command("search")
 def search():
     require_login()
     search_tasks_interactive()
-
-
-if __name__ == "__main__":
-    username = load_session()
-    if username:
-        users = load_json(USERS_FILE, {})
-        if username in users:
-            current_user["username"] = username
-    app()
